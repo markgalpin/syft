@@ -101,6 +101,7 @@ func newJavaArchiveParser(reader file.LocationReadCloser, detectNested bool) (*a
 func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) {
 	var pkgs []pkg.Package
 	var relationships []artifact.Relationship
+	var r_nestedPkgs []pkg.Package
 
 	// find the parent package from the java manifest
 	parentPkg, err := j.discoverMainPackage()
@@ -115,17 +116,7 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		return nil, nil, err
 	}
 	pkgs = append(pkgs, auxPkgs...)
-	if len(auxPkgs) != 0 {
-		log.Debugf("JAVA_parse aux: Parent: %v; Aux Packages: %v", parentPkg, auxPkgs)
-		for i := range auxPkgs {
-			depPkg := &auxPkgs[i]
-			relationships = append(relationships, artifact.Relationship{
-				From: *depPkg,
-				To:   *parentPkg,
-				Type: artifact.DependencyOfRelationship,
-			})
-		}
-	}
+
 	if j.detectNested {
 		// find nested java archive packages
 		nestedPkgs, nestedRelationships, err := j.discoverPkgsFromNestedArchives(parentPkg)
@@ -134,17 +125,7 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		}
 		pkgs = append(pkgs, nestedPkgs...)
 		relationships = append(relationships, nestedRelationships...)
-		if len(nestedPkgs) != 0 {
-			log.Debugf("JAVA_parse nested: Parent: %v; Nested Packages: %v", parentPkg, nestedPkgs)
-			for i := range nestedPkgs {
-				depPkg := &nestedPkgs[i]
-				relationships = append(relationships, artifact.Relationship{
-					From: *depPkg,
-					To:   *parentPkg,
-					Type: artifact.DependencyOfRelationship,
-				})
-			}
-		}
+		r_nestedPkgs = append(r_nestedPkgs, nestedPkgs...)
 	}
 
 	// lastly, add the parent package to the list (assuming the parent exists)
@@ -162,9 +143,42 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		} else {
 			log.WithFields("package", p.String()).Warn("unable to extract java metadata to generate purl")
 		}
+		p.SetID()
+	}
+
+	if len(r_nestedPkgs) != 0 {
+		log.Debugf("JAVA_parse nested: Parent: %v; Nested Packages: %v", parentPkg, r_nestedPkgs)
+		relationships = append(relationships, build_relationships(r_nestedPkgs, *parentPkg, pkgs)...)
+	}
+
+	if len(auxPkgs) != 0 {
+		log.Debugf("JAVA_parse aux: Parent: %v; Aux Packages: %v", parentPkg, auxPkgs)
+		relationships = append(relationships, build_relationships(auxPkgs, *parentPkg, pkgs)...)
 	}
 
 	return pkgs, relationships, nil
+}
+
+func build_relationships(subPkgs []pkg.Package, parentPkg pkg.Package, finalPkgs []pkg.Package) []artifact.Relationship {
+	var relationships []artifact.Relationship
+	for _, depPkg := range subPkgs {
+		fromPkg := retrievePackage(depPkg, finalPkgs)
+		if fromPkg == nil {
+			log.Warnf("Java Archive relationship parser couldn't find dep package %v in final packages list", depPkg)
+			continue
+		}
+		toPkg := retrievePackage(parentPkg, finalPkgs)
+		if toPkg == nil {
+			log.Warnf("Java Archive relationship parser couldn't find parent package %v in final packages list", parentPkg)
+			continue
+		}
+		relationships = append(relationships, artifact.Relationship{
+			From: *fromPkg,
+			To:   *toPkg,
+			Type: artifact.DependencyOfRelationship,
+		})
+	}
+	return relationships
 }
 
 // discoverMainPackage parses the root Java manifest used as the parent package to all discovered nested packages.
@@ -223,7 +237,6 @@ func (j *archiveParser) discoverMainPackage() (*pkg.Package, error) {
 			ArchiveDigests: digests,
 		},
 	}
-	retPkg.SetID()
 	return &retPkg, nil
 }
 
@@ -235,7 +248,7 @@ func (j *archiveParser) discoverPkgsFromAllMavenFiles(parentPkg *pkg.Package) ([
 	if parentPkg == nil {
 		return nil, nil
 	}
-	log.Warnf("AUX PARSER: %v", parentPkg)
+	log.Debugf("AUX PARSER: %v", parentPkg)
 	var pkgs []pkg.Package
 
 	// pom.properties
@@ -357,6 +370,7 @@ func pomPropertiesByParentPath(archivePath string, location file.Location, extra
 
 		if pomProperties.Version == "" || pomProperties.ArtifactID == "" {
 			// TODO: if there is no parentPkg (no java manifest) one of these poms could be the parent. We should discover the right parent and attach the correct info accordingly to each discovered package
+			log.Warnf("PROPS_PARSE fail parent: %v", pomProperties)
 			continue
 		}
 
@@ -426,7 +440,6 @@ func newPackageFromMavenData(pomProperties pkg.PomProperties, pomProject *pkg.Po
 		updateParentPackage(p, parentPkg)
 		return nil
 	}
-	p.SetID()
 	return &p
 }
 
@@ -457,11 +470,22 @@ func packageIdentitiesMatch(p pkg.Package, parentPkg *pkg.Package) bool {
 	// note: you CANNOT use name-is-subset-of-artifact-id or vice versa --this is too generic. Shaded jars are a good
 	// example of this: where the package name is "cloudbees-analytics-segment-driver" and a child is "analytics", but
 	// they do not indicate the same package.
-	if metadata.PomProperties.ArtifactID != "" && parentPkg.Name == metadata.PomProperties.ArtifactID {
-		return true
+	if metadata.PomProperties != nil {
+		if metadata.PomProperties.ArtifactID != "" && parentPkg.Name == metadata.PomProperties.ArtifactID {
+			return true
+		}
 	}
 
 	return false
+}
+
+func retrievePackage(p pkg.Package, pkgs []pkg.Package) *pkg.Package {
+	for _, pkg := range pkgs {
+		if packageIdentitiesMatch(p, &pkg) {
+			return &pkg
+		}
+	}
+	return nil
 }
 
 func updateParentPackage(p pkg.Package, parentPkg *pkg.Package) {
