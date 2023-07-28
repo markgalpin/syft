@@ -58,6 +58,7 @@ func parseJavaArchive(_ file.Resolver, _ *generic.Environment, reader file.Locat
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Debugf("JAVA: Parsing: %v", reader)
 	return parser.parse()
 }
 
@@ -106,7 +107,7 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not generate package from %s: %w", j.location, err)
 	}
-
+	log.Debugf("JAVA_parse: Parent Package: %v", parentPkg)
 	// find aux packages from pom.properties/pom.xml and potentially modify the existing parentPkg
 	// NOTE: we cannot generate sha1 digests from packages discovered via pom.properties/pom.xml
 	auxPkgs, err := j.discoverPkgsFromAllMavenFiles(parentPkg)
@@ -114,7 +115,17 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		return nil, nil, err
 	}
 	pkgs = append(pkgs, auxPkgs...)
-
+	if len(auxPkgs) != 0 {
+		log.Debugf("JAVA_parse aux: Parent: %v; Aux Packages: %v", parentPkg, auxPkgs)
+		for i := range auxPkgs {
+			depPkg := &auxPkgs[i]
+			relationships = append(relationships, artifact.Relationship{
+				From: *depPkg,
+				To:   *parentPkg,
+				Type: artifact.DependencyOfRelationship,
+			})
+		}
+	}
 	if j.detectNested {
 		// find nested java archive packages
 		nestedPkgs, nestedRelationships, err := j.discoverPkgsFromNestedArchives(parentPkg)
@@ -123,6 +134,17 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		}
 		pkgs = append(pkgs, nestedPkgs...)
 		relationships = append(relationships, nestedRelationships...)
+		if len(nestedPkgs) != 0 {
+			log.Debugf("JAVA_parse nested: Parent: %v; Nested Packages: %v", parentPkg, nestedPkgs)
+			for i := range nestedPkgs {
+				depPkg := &nestedPkgs[i]
+				relationships = append(relationships, artifact.Relationship{
+					From: *depPkg,
+					To:   *parentPkg,
+					Type: artifact.DependencyOfRelationship,
+				})
+			}
+		}
 	}
 
 	// lastly, add the parent package to the list (assuming the parent exists)
@@ -140,7 +162,6 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		} else {
 			log.WithFields("package", p.String()).Warn("unable to extract java metadata to generate purl")
 		}
-		p.SetID()
 	}
 
 	return pkgs, relationships, nil
@@ -186,7 +207,7 @@ func (j *archiveParser) discoverMainPackage() (*pkg.Package, error) {
 
 	// we use j.location because we want to associate the license declaration with where we discovered the contents in the manifest
 	licenses := pkg.NewLicensesFromLocation(j.location, selectLicenses(manifest)...)
-	return &pkg.Package{
+	retPkg := pkg.Package{
 		Name:     selectName(manifest, j.fileInfo),
 		Version:  selectVersion(manifest, j.fileInfo),
 		Language: pkg.Java,
@@ -201,7 +222,9 @@ func (j *archiveParser) discoverMainPackage() (*pkg.Package, error) {
 			Manifest:       manifest,
 			ArchiveDigests: digests,
 		},
-	}, nil
+	}
+	retPkg.SetID()
+	return &retPkg, nil
 }
 
 // discoverPkgsFromAllMavenFiles parses Maven POM properties/xml for a given
@@ -212,7 +235,7 @@ func (j *archiveParser) discoverPkgsFromAllMavenFiles(parentPkg *pkg.Package) ([
 	if parentPkg == nil {
 		return nil, nil
 	}
-
+	log.Warnf("AUX PARSER: %v", parentPkg)
 	var pkgs []pkg.Package
 
 	// pom.properties
@@ -403,7 +426,7 @@ func newPackageFromMavenData(pomProperties pkg.PomProperties, pomProject *pkg.Po
 		updateParentPackage(p, parentPkg)
 		return nil
 	}
-
+	p.SetID()
 	return &p
 }
 
