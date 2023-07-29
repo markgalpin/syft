@@ -145,17 +145,17 @@ func (j *archiveParser) parse() ([]pkg.Package, []artifact.Relationship, error) 
 		}
 		p.SetID()
 	}
+	if parentPkg != nil {
+		if len(r_nestedPkgs) != 0 {
+			log.Debugf("JAVA_parse nested: Parent: %v; Nested Packages: %v", parentPkg, r_nestedPkgs)
+			relationships = append(relationships, build_relationships(r_nestedPkgs, *parentPkg, pkgs)...)
+		}
 
-	if len(r_nestedPkgs) != 0 {
-		log.Debugf("JAVA_parse nested: Parent: %v; Nested Packages: %v", parentPkg, r_nestedPkgs)
-		relationships = append(relationships, build_relationships(r_nestedPkgs, *parentPkg, pkgs)...)
+		if len(auxPkgs) != 0 {
+			log.Debugf("JAVA_parse aux: Parent: %v; Aux Packages: %v", parentPkg, auxPkgs)
+			relationships = append(relationships, build_relationships(auxPkgs, *parentPkg, pkgs)...)
+		}
 	}
-
-	if len(auxPkgs) != 0 {
-		log.Debugf("JAVA_parse aux: Parent: %v; Aux Packages: %v", parentPkg, auxPkgs)
-		relationships = append(relationships, build_relationships(auxPkgs, *parentPkg, pkgs)...)
-	}
-
 	return pkgs, relationships, nil
 }
 
