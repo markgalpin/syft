@@ -51,6 +51,8 @@ func parsePackageLock(resolver file.Resolver, _ *generic.Environment, reader fil
 		return nil, nil, nil
 	}
 
+	log.Warnf("Parsing a package lock: %v", reader)
+
 	var pkgs []pkg.Package
 	dec := json.NewDecoder(reader)
 

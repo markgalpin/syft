@@ -40,7 +40,9 @@ func newPackageJSONPackage(u packageJSON, indexLocation file.Location) pkg.Packa
 	}
 
 	p.SetID()
-
+	if len(u.Dependencies) != 0 {
+		log.Debugf("Dependencies for NPM package: %v:%v are: %v", p.Name, p.Version, u.Dependencies)
+	}
 	return p
 }
 

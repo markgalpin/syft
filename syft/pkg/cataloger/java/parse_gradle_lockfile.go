@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"strings"
 
+	"github.com/anchore/syft/internal/log"
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/pkg"
@@ -21,7 +22,7 @@ type LockfileDependency struct {
 
 func parseGradleLockfile(_ file.Resolver, _ *generic.Environment, reader file.LocationReadCloser) ([]pkg.Package, []artifact.Relationship, error) {
 	var pkgs []pkg.Package
-
+	log.Warnf("JAVA: Gradle: %v", reader)
 	// Create a new scanner to read the file
 	scanner := bufio.NewScanner(reader)
 

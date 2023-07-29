@@ -55,6 +55,8 @@ func parsePackageJSON(_ file.Resolver, _ *generic.Environment, reader file.Locat
 	var pkgs []pkg.Package
 	dec := json.NewDecoder(reader)
 
+	log.Debugf("parsing a package json: %v", reader)
+
 	for {
 		var p packageJSON
 		if err := dec.Decode(&p); errors.Is(err, io.EOF) {

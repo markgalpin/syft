@@ -30,7 +30,7 @@ func parsePnpmLock(resolver file.Resolver, _ *generic.Environment, reader file.L
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load pnpm-lock.yaml file: %w", err)
 	}
-
+	log.Warnf("Parsing Pnpm Lock: %v", reader)
 	var pkgs []pkg.Package
 	var lockFile pnpmLockYaml
 

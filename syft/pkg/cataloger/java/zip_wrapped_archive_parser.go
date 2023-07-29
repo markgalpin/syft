@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	intFile "github.com/anchore/syft/internal/file"
+	"github.com/anchore/syft/internal/log"
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/pkg"
@@ -24,6 +25,8 @@ func parseZipWrappedJavaArchive(_ file.Resolver, _ *generic.Environment, reader 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	log.Warnf("JAVA: Zip Archive: %v", reader)
 
 	// we use our zip helper functions instead of that from the archiver package or the standard lib. Why? These helper
 	// functions support zips with shell scripts prepended to the file. Specifically, the helpers use the central

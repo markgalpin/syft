@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/anchore/syft/internal"
+	"github.com/anchore/syft/internal/log"
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/pkg"
@@ -48,7 +49,7 @@ func parseYarnLock(resolver file.Resolver, _ *generic.Environment, reader file.L
 	if pathContainsNodeModulesDirectory(reader.AccessPath()) {
 		return nil, nil, nil
 	}
-
+	log.Warnf("Parsing Yarn Lock: %v", reader)
 	var pkgs []pkg.Package
 	scanner := bufio.NewScanner(reader)
 	parsedPackages := internal.NewStringSet()

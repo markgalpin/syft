@@ -150,17 +150,18 @@ func toDependencies(relationships []artifact.Relationship) []cyclonedx.Dependenc
 		// we only capture package-to-package relationships for now
 		fromPkg, ok := r.From.(pkg.Package)
 		if !ok {
-			log.Debugf("unable to convert relationship fromPkg to CycloneDX 1.4 JSON, dropping: %+v", r)
+			log.Warnf("unable to convert relationship fromPkg to CycloneDX 1.4 JSON, dropping: %+v", r)
 			continue
 		}
 
 		toPkg, ok := r.To.(pkg.Package)
 		if !ok {
-			log.Debugf("unable to convert relationship toPkg to CycloneDX 1.4 JSON, dropping: %+v", r)
+			log.Warnf("unable to convert relationship toPkg to CycloneDX 1.4 JSON, dropping: %+v", r)
 			continue
 		}
 
 		// ind dep
+		log.Debugf("parsing realtionship: %v", r)
 
 		innerDeps := []string{}
 		innerDeps = append(innerDeps, deriveBomRef(fromPkg))

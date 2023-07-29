@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	intFile "github.com/anchore/syft/internal/file"
+	"github.com/anchore/syft/internal/log"
 	"github.com/anchore/syft/syft/artifact"
 	"github.com/anchore/syft/syft/file"
 	"github.com/anchore/syft/syft/pkg"
@@ -52,6 +53,7 @@ func parseTarWrappedJavaArchive(_ file.Resolver, _ *generic.Environment, reader 
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Warnf("JAVA: Tar Archive: %v", reader)
 
 	// look for java archives within the tar archive
 	return discoverPkgsFromTar(reader.Location, archivePath, contentPath)
